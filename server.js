@@ -170,6 +170,14 @@ let chosen_options = {
         ],
         type: "bool"
     },
+    "save_member_message_count": {
+        text: "Save members message count?",
+        default: true,
+        accepted: [
+            "y", "n"
+        ],
+        type: "bool"
+    },
     "save_bans": {
         text: "Save bans? You must have permission to ban in the server to be able to save bans.",
         default: true,
@@ -185,10 +193,10 @@ let chosen_options = {
         type: "choice"
     },
     "interval": {
-        text: "How long should the interval in seconds between message requests be for the backup? (1-10)\nSet this to 1.5 if you don't know what to choose.",
+        text: "How long should the interval in seconds between message requests be for the backup? (0.75-10)\nSet this to 1.5 if you don't know what to choose.\nDiscord may rate-limit you if you put it too low!",
         default: 1.5,
         not_precise: true,
-        min: 1,
+        min: 0.75,
         max: 10,
         type: "number"
     }
@@ -449,7 +457,7 @@ process_begin = async _ => {
             
             str = str
                 + `Ban ${ban_idx}:\r\n`
-                + `    User: ${ban.user.tag} (id ${ban.user.id})\r\n`
+                + `    User: ${ban.user?.tag ?? "Unknown tag"} (id ${ban.user?.id ?? "Unknown ID"})\r\n`
                 + `    Reason: ${ban.reason ?? "None provided"}\r\n`
 
             let perms = [];
@@ -481,6 +489,9 @@ process_begin = async _ => {
                 categories[parent] = chinfo.folder(parent);
         })
     }
+	
+	// for member message counts
+	let mem_messages = {}
 
     // channel backup
     if (selectedChannels.length) {
@@ -521,6 +532,9 @@ process_begin = async _ => {
                         this_str += `\r\n-- [${dateToLocaleString(time, chosen_options.time_locale)}] --\r\n`
                         currentchunk = timechunk; // sync back up
                     }
+					
+					if (chosen_options["save_member_message_count"])
+						mem_messages[msg.author.id] = (mem_messages[msg.author.id] ?? 0) + 1;
 
                     // extract and concatenate attachments
                     let att_text = ""
@@ -624,6 +638,34 @@ process_begin = async _ => {
                 await sleep(chosen_options.interval * 1000)
             }
         }
+		
+		if (chosen_options["save_member_message_count"]) {
+			let str = ""
+			let arr = []
+			
+			// arrayify our object
+			for (var id in mem_messages) {
+				arr.push([id, mem_messages[id]])
+			}
+			
+			// sort
+			arr.sort((a, b) => {
+				return b[1] - a[1]
+			})
+			
+			for (let num = 0; num < arr.length; num++) {
+				let kv = arr[num]
+				let member;
+				try {
+					member = await selectedGuild.members.fetch(kv[0])
+				} catch {continue}
+				if (!member) continue;
+				
+				str += `(ID ${kv[0]}) - ${member.user.tag}: ${kv[1]} message(s)\r\n`
+			}
+			svinfo.file("message_counts.txt", str)
+			console.log("Saved member message counts!")
+		}
 
         console.log("Finished backing up channels!")
     }
