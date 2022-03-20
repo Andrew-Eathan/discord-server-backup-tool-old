@@ -13,4 +13,5 @@ Run this command to install them! (assuming you have npm)
 ### Usage:
 Run the script with `node server.js` and then type a Discord token, it's neccesary to access the server information.  
 The code is always available to look at if you don't trust typing your token!  
-Afterwards, just select the server and channels, select the options you want (they have defaults so you can skip them by pressing enter) and then wait until it completes.
+Afterwards, just select the server and channels, select the options you want (they have defaults so you can skip them by pressing enter) and then wait until it completes.  
+The risks/consequences of using this tool (given that it probably goes against Discord TOS) are on you though, so use with caution, and don't set a low interval for large servers!
