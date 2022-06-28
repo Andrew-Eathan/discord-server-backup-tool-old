@@ -17,4 +17,10 @@ Run this command to install them! (assuming you have npm)
 Run the script with `node server.js` and then type a Discord token, it's neccesary to access the server information.  
 The code is always available to look at if you don't trust typing your token!  
 Afterwards, just select the server and channels, select the options you want (they have defaults so you can skip them by pressing enter) and then wait until it completes.  
-The risks/consequences of using this tool (given that it probably goes against Discord TOS) are on you though, so use with caution, and don't set a low interval for large servers!
+  
+NOTE: The risks/consequences of using this tool (given that it probably goes against Discord TOS) are on you though, so use with caution!  
+Use a high message request interval, and don't waste your time (and Discord's API resources) trying to backup huge servers.  
+This is only intended to be used to backup your average discord server with your friends :D
+  
+Also, for obvious reasons, this tool doesn't backup any media sent in servers.
+If you really want that, you can write a script to filter through backup messages for links and download the files.
