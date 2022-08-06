@@ -8,10 +8,16 @@ It has custom options you can tweak, mostly related to what you want to save.
 ### Setup:
 To use this tool you need to install some NPM libraries.  
 Run this command to install them! (assuming you have npm)  
-`npm i discord.js@12.5.3`  
+`npm i discord.js-selfbot-v13`  
 `npm i node-fetch@2.6.1`  
 `npm i readline-sync`  
 `npm i jszip`  
+
+### To-do:
+- Save thread messages
+- Save emojis
+- Save more member data
+- Save more channel data (description, slowmode amount, permissions, etc)
   
 ### Usage:
 Run the script with `node server.js` and then type a Discord token, it's necessary to access the server information.  

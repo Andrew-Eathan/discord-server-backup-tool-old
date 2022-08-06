@@ -1,0 +1,36 @@
+{
+  "dependencies": {
+    "discord.js": "^12.5.3",
+    "discord.js-selfbot-v13": "^2.4.12",
+    "jszip": "^3.10.0",
+    "node-fetch": "^2.6.1",
+    "readline-sync": "^1.4.10"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "name": "discord-server-backup-tool",
+  "description": "I made a front-end discord server backup tool years ago, but recently Discord changed CORS stuff and discord.js no longer works in the browser, so i've decided to rewrite it as a CLI tool!   This tool lets you backup any server data such as members, roles, overview, avatar, banner, and channel messages.   It has custom options you can tweak, mostly related to what you want to save.",
+  "version": "1.1.0",
+  "main": "server.js",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andrew-Eathan/discord-server-backup-tool.git"
+  },
+  "keywords": [
+    "discord",
+    "server",
+    "backup",
+    "tool",
+    "andreweathan",
+    "andrew",
+    "eathan"
+  ],
+  "author": "andreweathan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Andrew-Eathan/discord-server-backup-tool/issues"
+  },
+  "homepage": "https://github.com/Andrew-Eathan/discord-server-backup-tool#readme"
+}
