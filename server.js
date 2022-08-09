@@ -186,6 +186,14 @@ let chosen_options = {
 		],
 		type: "bool"
 	},
+	"save_members_images": {
+		text: "Save the avatars and banners of members? Note: This will save them in a lower quality to avoid large export sizes!\n (y)es, (n)o, yes, in (f)ull quality",
+		default: "n",
+		accepted: [
+			"y", "n", "f"
+		],
+		type: "choice"
+	},
 	"save_roles": {
 		text: "Save roles?",
 		default: true,
@@ -356,6 +364,12 @@ process_begin = async _ => {
 		let members = await guild.members.fetch()
 
 		let str = `List of ${members.size} members:\r\n\r\n`
+		let imagedata = {}
+		let imagefolder
+		let doSaveImgs = chosen_options.save_members_images
+		if (doSaveImgs != "n") {
+			imagefolder = svinfo.folder("member_avatars")
+		}
 		
 		let i = 0;
 		for (var member of members) {
@@ -378,7 +392,7 @@ process_begin = async _ => {
 			str = str
 				+ `${user?.tag}:\r\n`
 				+ `Avatar URL: ${user.avatarURL({format: "png"})}\r\n`
-				+ `Display Name: ${member.displayName ?? "Unknown"}\r\n`
+				+ `Display Name: ${member.displayName ?? "Unknown"} (Device: ${member?.clientStatus ?? "Unknown"})\r\n`
 				+ `Nickname: ${member.nickname ?? "None"}\r\n`
 				+ `Timed out?: ${timeout} \r\n`
 				+ `Displayed Hex Color: ${member.displayHexColor}\r\n`
@@ -421,6 +435,23 @@ process_begin = async _ => {
 				+ `Voice State: ${member.voice.serverMute ? "Server-muted" : "Not server-muted"}, ${member.voice.serverDeaf ? "Server-deafened" : "cot server-deafened"}, and camera ${member.voice.selfVideo ? "enabled" : "disabled"}\r\n`
 				+ `\r\n`
 				+ `\r\n`
+
+			// incase member image saving is set, save them to a subfolder
+			if (doSaveImgs == "y" || doSaveImgs == "f") {
+				let userfolder = imagefolder.folder(member.user.tag);
+				let size = doSaveImgs == "f" ? 4096 : 128;
+				user = await user.fetch()
+
+				// check if guild and user icons/banners are the same, to decide whether to save both or not
+				let uicon = member.user.avatarURL({format: "png", size})
+				let ubanner = member.user.bannerURL({format: "png", size})
+				let gicon = member.displayAvatarURL({format: "png", size})
+				// no guild banner, i assume it doesn't exist and i misremembered discord features
+
+				if (uicon) userfolder.file("icon.png", uicon)
+				if (ubanner) userfolder.file("banner.png", ubanner)
+				if (uicon != gicon) userfolder.file("icon_this_guild.png", gicon)
+			}
 		}
 
 		console.log()
@@ -487,7 +518,7 @@ process_begin = async _ => {
 			str = str
 				+ `Ban ${ban_idx}:\r\n`
 				+ `    User: ${ban.user?.tag ?? "Unknown tag"} (id ${ban.user?.id ?? "Unknown ID"})\r\n`
-				+ `    Reason: ${ban.reason ?? "None provided"}\r\n`
+				+ `    Reason: ${ban.reason ?? "None provided (possibly unknown)"}\r\n`
 
 			let perms = [];
 			permissionBitLookup.forEach(value => {
@@ -557,7 +588,6 @@ process_begin = async _ => {
 
 				// turn into an array and reverse so that the last element is the latest message, and the first is the oldest
 				// so that we can keep adding new messages to the start of the file
-				console.log(messages)
 				messages = messages.map(msg => msg).reverse()
 				for (var msg of messages) {
 					let time = msg.createdAt
@@ -599,8 +629,6 @@ process_begin = async _ => {
 							msg_reply = " replied to [deleted]"
 						}
 					}
-
-					console.log("message type: " + msg?.type)
 
 					// usual message
 					switch (msg?.type) {
