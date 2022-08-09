@@ -448,9 +448,9 @@ process_begin = async _ => {
 				let gicon = member.displayAvatarURL({format: "png", size})
 				// no guild banner, i assume it doesn't exist and i misremembered discord features
 
-				if (uicon) userfolder.file("icon.png", uicon)
-				if (ubanner) userfolder.file("banner.png", ubanner)
-				if (uicon != gicon) userfolder.file("icon_this_guild.png", gicon)
+				if (uicon) userfolder.file("icon.png", getLinkData(uicon))
+				if (ubanner) userfolder.file("banner.png", getLinkData(ubanner))
+				if (uicon != gicon) userfolder.file("icon_this_guild.png", getLinkData(gicon))
 			}
 		}
 
