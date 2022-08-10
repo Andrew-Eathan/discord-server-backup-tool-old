@@ -574,12 +574,16 @@ process_begin = async _ => {
 			}
 
 			let total_str = ""
+			let fails = 0
 
 			while (true) {
 				let channel = selectedChannels[key];
 				let messages = await channel.messages.fetch(options).catch(err => {
-					console.log("Failed to save messages, this channel might not be accessible by you!", err)
+					process.stdout.write("Failed to save messages, retrying...", err)
 					total_str += "Couldn't save messages (or any more messages): " + err + "\r\n"
+
+					myfolder.file("messages.txt", total_str)
+					await sleep(chosen_options.interval * 1000)
 					return "fail"
 				})
 
@@ -694,13 +698,13 @@ process_begin = async _ => {
 
 				c_bytes += this_str.length;
 				c_lines += this_str.split("\r\n").length
-				console.log(`\r    ${c_bytes} bytes  |	${c_lines} lines  |  ${c_messages} msgs`)
+				process.stdout.write(`    ${c_bytes} bytes  |	${c_lines} lines  |  ${c_messages} msgs    \r`)
 
 				// add the chunk of text at the start
 				total_str = this_str + total_str;
 
 				if (messages.length < 100) {
-					console.log(`\r\nChannel ${key + 1} complete, saved ${c_bytes} bytes, ${c_lines} lines and ${c_messages} messages`)
+					console.log(`\nChannel ${key + 1} complete, saved ${c_bytes} bytes, ${c_lines} lines and ${c_messages} messages`)
 					myfolder.file("messages.txt", total_str)
 					await sleep(chosen_options.interval * 1000)
 					break;
