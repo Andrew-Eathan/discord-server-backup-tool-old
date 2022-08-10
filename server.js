@@ -570,7 +570,8 @@ process_begin = async _ => {
 			let currentchunk = 0;
 			let done = false
 			let options = {
-				limit: 100
+				limit: 100,
+				//before: "850116695951671346"
 			}
 
 			let total_str = ""
@@ -593,6 +594,7 @@ process_begin = async _ => {
 				// turn into an array and reverse so that the last element is the latest message, and the first is the oldest
 				// so that we can keep adding new messages to the start of the file
 				messages = messages.map(msg => msg).reverse()
+				this_str = this_str + `[Latest message ID: ${messages[messages.length - 1].id}\n`
 				for (var msg of messages) {
 					let time = msg.createdAt
 					let timechunk = time.getUTCDate() + time.getUTCMonth() + time.getUTCFullYear()
@@ -630,13 +632,16 @@ process_begin = async _ => {
 						} 
 						catch (e) 
 						{
-							msg_reply = " replied to [deleted]"
+							msg_reply = " replied to a deleted message"
 						}
 					}
+
+					console.log(msg.content.substr(0, 20), msg.author.tag, msg?.type, c_messages)
 
 					// usual message
 					switch (msg?.type) {
 						case "DEFAULT":
+						case "REPLY": // my code from v12 already handles message references, so i think it'll be fine if i just make the case fallthrough
 							if (msg.content.length)
 								final_text = `${time_string} ${msg.author.tag}${msg_reply}: ${msg.content}\r\n${att_text}${attachments}`
 							else if (att_count) // message without text with attachments
