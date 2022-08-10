@@ -1,6 +1,7 @@
 const fetch = require("node-fetch");
 const fs = require("fs");
-const reader = require("readline-sync")
+const reader = require("readline-sync");
+const { Console } = require("console");
 
 console.log("+-----------------------------------------+")
 console.log("|andreweathan's discord server backup tool|")
@@ -19,6 +20,10 @@ console.log("Logging in...")
 // update from future andrew: i have converted this to discord.js 13 lol
 const { Client } = require('discord.js-selfbot-v13')
 const bot = new Client()
+
+var logout = fs.createWriteStream("logout.log")
+var logerr = fs.createWriteStream("logerr.log")
+var logs = new Console(logout, logerr);
 
 async function getLinkData(link) {
 	let res = await fetch(link)
@@ -97,11 +102,18 @@ async function sleep(ms) {
 // after login to user account, here is where we choose the guild and channels to back up
 process_continue = async _ => {
 	console.log(`Login successful [${bot.user.tag}]`)
+	logs.log(`Login successful [${bot.user.tag}]`)
 
 	let mapping = []
 	bot.guilds.cache.forEach(value => mapping.push(value))
 
-	mapping.forEach((value, idx) => console.log(`${idx}: ${value.name}`, `(${value.memberCount} members)`));
+	logs.log(`Detected ${mapping.length} guilds:`)
+
+	mapping.forEach((value, idx) => {
+		console.log(`${idx}: ${value.name}`, `(${value.memberCount} members)`)
+		logs.log(`${idx}: ${value.name} (${value.memberCount}) members) ID: ${value.id}`)
+	});
+
 	console.log("This is a list of guilds you are in, type the number of the guild you want to back up!")
 
 	while (selectedGuild == null) {
@@ -113,41 +125,70 @@ process_continue = async _ => {
 		selectedGuild = mapping[idx];
 	}
 
+	logs.log(`Selected guild ${selectedGuild.id}`)
+
 	// get channels
 	mapping = [];
 
 	let channellist = selectedGuild.channels.cache
 	for await (let [id, value] of channellist) {
-		if (value.type == "GUILD_TEXT") 
+		if (value.type == "GUILD_TEXT" || value.type == "GUILD_VOICE") {
 			mapping.push(value)
+		}
 	}
 
 	// channels area
 	mapping.forEach((value, idx) => {
 		if (value.type == "GUILD_TEXT")
 			console.log(`${idx}: ${value.name}`)
-		else
-			console.log(`\t${idx}: ${value.name}`)
+		else if (value.type == "GUILD_VOICE")
+			console.log(`${idx}: ${value.name} (Voice)`)
+		else {
+			let ctype_clean = value.type.replace(/GUILD_/gm, "").replace(/_/gm, ""); // make the channel type prettier to see
+			console.log(`${idx}: ${value.name} (${ctype_clean})`)
+		}
 	});
 
 	console.log("Select channels by typing their numbers and pressing enter!")
+	console.log("To exclude a channel from this list (and the backup), add ! before it (example: !4)")
 	console.log("When you're done adding channels, type \"next\"")
 
 	// while there's channels left to choose (0 is falsy so it fails the check if there are no channels)
 	while (mapping.length) {
 		let idx = reader.question("> ")
 		if (idx == "next") break;
+		let doRemove = false
+
+		console.log(idx)
+		if (idx[0] == "!") {
+			doRemove = true;
+			idx = idx.substring(1)
+			console.log(idx, 1032)
+		}
+	
 		idx = Number(idx);
 
 		if (isNaN(idx)) {console.log("Please type a number, or \"next\" if you're done!"); continue}
 		if (idx < 0 || idx >= mapping.length) {console.log("Choice is outside of the bounds!"); continue};
 		if (idx % 1 != 0) {console.log("No decimals..."); continue}
 
-		selectedChannels.push(mapping.splice(idx, 1)[0]);
+		let channel = mapping.splice(idx, 1)[0];
+		if (!doRemove) selectedChannels.push(channel);
+
+		logs.log(`${doRemove ? "Excluded" : "Added"} channel ${channel.name} (id ${channel.name}, idx ${idx})`)
 
 		console.log()
 		console.log("Remaining channels:")
-		mapping.forEach((value, idx) => console.log(`${idx}: ${value.name}`));
+		mapping.forEach((value, idx) => {
+			if (value.type == "GUILD_TEXT")
+				console.log(`${idx}: ${value.name}`)
+			else if (value.type == "GUILD_VOICE")
+				console.log(`${idx}: ${value.name} (Voice)`)
+			else {
+				let ctype_clean = value.type.replace(/GUILD_/gm, "").replace(/_/gm, ""); // make the channel type prettier to see
+				console.log(`${idx}: ${value.name} (${ctype_clean})`)
+			}
+		});
 	}
 
 	console.log(`Selected ${selectedChannels.length} channels!`)
@@ -284,6 +325,9 @@ process_options = _ => {
 		}
 	})
 
+	logs.log(`Parameters:`)
+	logs.log(chosen_options)
+
 	console.log("Beginning backup process in 3 seconds!")
 	setTimeout(process_begin, 3000)
 }
@@ -293,7 +337,7 @@ bot.login(token).catch(e => {
 	console.log(e)
 }).then(process_continue);
 
-const JSZip = require("jszip")
+const JSZip = require("jszip");
 process_begin = async _ => {
 	// explanation:
 	// we start with no previous chunk so we fetch the first ~100 messages (api limit)
@@ -317,6 +361,8 @@ process_begin = async _ => {
 	if (chosen_options.save_server_data) {
 		console.log("Saving server information...")
 		svinfo = svinfo ?? zip.folder("server");
+
+		logs.log("[Server backup start]")
 		
 		// save icon
 		svinfo.file("icon.png", getLinkData(guild.iconURL({format: "png"}) ?? "https://cdn.discordapp.com/attachments/947806697878069249/953378638152228874/unknown.png?size=256"))
@@ -353,13 +399,18 @@ process_begin = async _ => {
 			+ `\r\n`
 			+ `Rules Channel: ${guild.rulesChannel?.name ?? "None"}\r\n`
 			+ `System Channel (join messages, boosts, etc): ${guild.systemChannel?.name ?? "None"} (id ${guild.systemChannel?.id ?? "unknown"})\r\n`;
+
+		logs.log("[Server backup end]")
 		
 		svinfo.file("data.txt", str)
 		console.log("Saved server information!")
+		logs.log("[Server backup save]")
 	}
 
 	if (chosen_options.save_members) {
 		console.log("Saving members...")
+		logs.log("[Member backup start]")
+
 		svinfo = svinfo ?? zip.folder("server");
 		let members = await guild.members.fetch()
 
@@ -389,6 +440,8 @@ process_begin = async _ => {
 			let timeout = member.isCommunicationDisabled() ? `Yes, until ${dateAndTime(ttime, chosen_options.time_locale)}` : "No"
 			let boosting = member.premiumSince ? `Yes, since ${dateAndTime(member.premiumSince, chosen_options.time_locale)}` : "No"
 
+			logs.log(`Backing up ${user?.tag} (${i + 1} / ${members.size})`)
+
 			str = str
 				+ `${user?.tag}:\r\n`
 				+ `Avatar URL: ${user.avatarURL({format: "png"})}\r\n`
@@ -407,7 +460,7 @@ process_begin = async _ => {
 			if (member.presence != null)
 				member.presence.activities.forEach((activity, idx) => {
 					str = str
-							+ `    Activity ${idx + 1}:\r\n`
+						+ `    Activity ${idx + 1}:\r\n`
 						+ `		   Name: ${activity.name}\r\n`
 						+ `		   Details: ${activity.details ?? "None"}\r\n`
 						+ `		   Started at: ${dateAndTime(activity.createdAt, chosen_options.time_locale)}\r\n`
@@ -454,13 +507,16 @@ process_begin = async _ => {
 			}
 		}
 
+		logs.log("[Member backup end]")
 		console.log()
 		svinfo.file("members.txt", str)
 		console.log("Saved members!")
+		logs.log("[Member backup save]")
 	}
 
 	// save role data
 	if (chosen_options.save_roles) {
+		logs.log("[Role backup start]")
 		console.log("Saving role data...")
 		svinfo = svinfo ?? zip.folder("server");
 
@@ -471,6 +527,8 @@ process_begin = async _ => {
 		for (var role of roles) {
 			role_idx++;
 			role = role[1]
+
+			logs.log(`Backing up ${role.name}`)
 
 			str = str
 				+ `Role ${role_idx}:\r\n`
@@ -491,21 +549,26 @@ process_begin = async _ => {
 			str += "\r\n\r\n"
 		}
 
+		logs.log("[Role backup end]")
 		svinfo.file("roles.txt", str)
 		console.log("Saved role data!")
+		logs.log("[Role backup save]")
 	}
 
 	ban_save: if (chosen_options.save_bans) {
+		logs.log("[Ban backup start]")
 		console.log("Saving ban data...")
 		svinfo = svinfo ?? zip.folder("server");
 
 		let bans;
 		try {
-			bans = await guild.fetchBans()
+			bans = await guild.bans.fetch()
 		}
 		catch (e) {
 			console.log("Couldn't save bans, you probably don't have access to view them!")
 			console.log("Error stack trace: " + e)
+			logs.error("Failed to backup bans")
+			logs.error(e)
 			break ban_save;
 		}
 
@@ -531,8 +594,10 @@ process_begin = async _ => {
 			str += "\r\n\r\n"
 		}
 
+		logs.log("[Ban backup end]")
 		svinfo.file("bans.txt")
 		console.log("Saved ban data!")
+		logs.log("[Ban backup save]")
 	}
 
 	// generate jszip category folders for all of the categories' channels to be put in
@@ -555,10 +620,13 @@ process_begin = async _ => {
 
 	// channel backup
 	if (selectedChannels.length) {
+		logs.log("[Channel backup start]")
 		console.log("Backing up channels...")
+		svinfo = svinfo ?? zip.folder("server");
 
 		let key = -1
 		for (var channel of selectedChannels) {
+			logs.log(`[Channel #${channel.name} backup start]`)
 			key++;
 			console.log(`Channel ${key + 1} (#${channel.name}):`)
 
@@ -568,33 +636,79 @@ process_begin = async _ => {
 			let c_bytes = 0;
 			let c_lines = 0;
 			let currentchunk = 0;
-			let done = false
 			let options = {
 				limit: 100,
 				//before: "850116695951671346"
 			}
 
+			// save channel info
+			let ch_str = `Info for channel #${channel.name}:\r\n`
+				+ `ID: ${channel.id}\r\n`
+				+ `Type: ${channel.type}\r\n`
+				+ `Position: ${channel.position} (raw: ${channel.rawPosition})\r\n`
+				+ `Created on ${dateToLocaleString(channel.createdAt, chosen_options.time_locale)} at ${timeToLocaleString(channel.createdAt, chosen_options.time_locale)} (locale: ${chosen_options.time_locale})\r\n`
+				+ `Auto thread archive time: ${channel?.defaultAutoArchiveDuration ?? "Unknown"}\r\n`
+			
+			switch (channel.type) {
+				case "GUILD_TEXT":
+					case "DM":
+						case "GUILD_NEWS":
+							case "GUILD_NEWS":
+								ch_str += `Topic: ${channel?.topic ?? "[Unknown]"}\r\n`
+									+ `Slowmode Time: ${channel.rateLimitPerUser} second(s)`
+				case "GUILD_VOICE":
+					case "GUILD_STAGE_VOICE":
+						ch_str += `Bitrate: ${channel.bitrate}\r\n`
+							+ `RTC Region: ${channel?.rtcRegion ?? "Auto"}\r\n`
+							+ `Video Quality Mode: ${channel?.videoQualityMode ?? "Unknown"}\r\n`
+							+ `User Limit: ${channel.userLimit}`
+				break;
+			}
+
+			myfolder.file("info.txt", ch_str)
+			logs.log(`[Saved channel info]`)
+
 			let total_str = ""
 			let fails = 0
-
 			while (true) {
 				let channel = selectedChannels[key];
-				let messages = await channel.messages.fetch(options).catch(err => {
-					process.stdout.write("Failed to save messages, retrying...", err)
-					total_str += "Couldn't save messages (or any more messages): " + err + "\r\n"
+				
+				logs.log(`[Channel #${channel.name} message backup start]`)
+				let messages = await channel.messages.fetch(options).catch(async err => {
+					fails++;
+
+					logs.error("Failed to save messages, attempt " + fails)
+					logs.error(err)
+					process.stdout.write("Failed to save messages, retrying... " + fails + " (err: " + err + ")      \r")
+
+					if (fails > 10) {
+						total_str += "Couldn't save messages (or any more messages): " + err + "\r\n"
+						console.log("\n[ERR] Failed to back up " + channel.name + "! Error message: ", err)
+						logs.error("[ERR] Failed to back up " + channel.name + ", error message: ")
+						logs.error(err)
+						fails = 0
+					}
+					else {
+						return "retry";
+					}
 
 					myfolder.file("messages.txt", total_str)
 					await sleep(chosen_options.interval * 1000)
 					return "fail"
 				})
 
+				if (messages == "retry") continue;
 				if (messages == "fail") break;
 				let this_str = ""
 
 				// turn into an array and reverse so that the last element is the latest message, and the first is the oldest
 				// so that we can keep adding new messages to the start of the file
 				messages = messages.map(msg => msg).reverse()
-				this_str = this_str + `[Latest message ID: ${messages[messages.length - 1].id}\n`
+				if (messages.length > 0) this_str += `[Latest message ID: ${messages[messages.length - 1].id}]\r\n`
+				else this_str += `[No messages in this channel!]\r\n`
+
+				
+
 				for (var msg of messages) {
 					let time = msg.createdAt
 					let timechunk = time.getUTCDate() + time.getUTCMonth() + time.getUTCFullYear()
@@ -620,7 +734,7 @@ process_begin = async _ => {
 					} else attachments = "";
 
 					// compose this message
-					let final_text = "[if you see this something went wrong] " + msg.type + " - " + msg.author.tag + " - " + msg.content;
+					let final_text = "[if you see this something went wrong] " + msg.type + " - " + msg.author.tag + " - " + msg.content + "\r\n";
 					let msg_reply = "";
 					let time_string = `[${timeToLocaleString(time, chosen_options.time_locale)}]`
 
@@ -635,8 +749,6 @@ process_begin = async _ => {
 							msg_reply = " replied to a deleted message"
 						}
 					}
-
-					console.log(msg.content.substr(0, 20), msg.author.tag, msg?.type, c_messages)
 
 					// usual message
 					switch (msg?.type) {
@@ -693,7 +805,15 @@ process_begin = async _ => {
 							final_text = `${time_string} This guild has been requalified for Guild Discovery!\r\n`
 						break;
 						case "THREAD_CREATED":
-							final_text = `${time_string} ${msg.author.tag} created a thread: ${msg.content}`
+							final_text = `${time_string} ${msg.author.tag} created a thread: ${msg.content}\r\n`
+						break;
+						case "APPLICATION_COMMAND":
+							final_text = `${time_string} A command for the bot ${msg.author.tag} was ran! ${msg.author.tag} responded with: ${msg.content}\r\n`
+						break;
+						default:
+							logs.error("Error: Unimplemented message type")
+							logs.error(msg)
+							logs.error(final_text)
 						break;
 					}
 					
@@ -704,12 +824,14 @@ process_begin = async _ => {
 				c_bytes += this_str.length;
 				c_lines += this_str.split("\r\n").length
 				process.stdout.write(`    ${c_bytes} bytes  |	${c_lines} lines  |  ${c_messages} msgs    \r`)
+				logs.log(`    ${c_bytes} bytes  |	${c_lines} lines  |  ${c_messages} msgs    \r`)
 
 				// add the chunk of text at the start
 				total_str = this_str + total_str;
 
 				if (messages.length < 100) {
 					console.log(`\nChannel ${key + 1} complete, saved ${c_bytes} bytes, ${c_lines} lines and ${c_messages} messages`)
+					logs.log(`Channel ${key + 1} complete, saved ${c_bytes} bytes, ${c_lines} lines and ${c_messages} messages`)
 					myfolder.file("messages.txt", total_str)
 					await sleep(chosen_options.interval * 1000)
 					break;
@@ -719,6 +841,8 @@ process_begin = async _ => {
 				if (messages.length) options.before = messages.shift().id;
 				await sleep(chosen_options.interval * 1000)
 			}
+
+			logs.log("[Channel backup end]")
 		}
 		
 		if (chosen_options["save_member_message_count"]) {
@@ -745,25 +869,32 @@ process_begin = async _ => {
 				
 				str += `(ID ${kv[0]}) - ${member.user.tag}: ${kv[1]} message(s)\r\n`
 			}
+			
 			svinfo.file("message_counts.txt", str)
 			console.log("Saved member message counts!")
+			logs.log("[Saved member message counts]")
 		}
 
 		console.log("Finished backing up channels!")
 	}
 
+	logs.log("Generating zip")
 	let content = await zip.generateAsync({type: "nodebuffer"})
 	let fname = guild.name.replace(/[^A-Z0-9]/ig, '').toLowerCase()
 
 	try {
 		fs.writeFileSync(fname + ".zip", content)
 		console.log("Saved to " + fname + ".zip!")
+		logs.log("Saved zip to " + fname + ".zip")
 	}
 	catch (e) {
 		console.log("Couldn't write zip, saving as backup.zip instead! (err string: " + e + ")")
 		fs.writeFileSync("backup.zip", content)
+		logs.error("Failed to save zip to " + fname + ".zip")
+		logs.error(e)
 	}
 
 	console.log("Finished backing up, thank you for using this tool!")
+	logs.log("Process exit")
 	process.exit(0)
 }
