@@ -21,9 +21,25 @@ console.log("Logging in...")
 const { Client } = require('discord.js-selfbot-v13')
 const bot = new Client()
 
+clean4FS = str => str.toLowerCase().replaceAll(/[^a-zA-Z0-9\(\)\s\-]+/gm, "_");
+
+// to keep saved zips short
+getInitials = str => {
+	let st = ""
+	str.split(/\s/gm).forEach(s => st += s[0])
+	return st
+}
+
 var logout = fs.createWriteStream("logout.log")
 var logerr = fs.createWriteStream("logerr.log")
 var logs = new Console(logout, logerr);
+
+process.on("unhandledException", e => {
+	process.stdout.write("\r\n[ERROR] An unhandled exception happened! Please report this to me :( -- " + e + "\r\n")
+	console.log(e)
+	logs.error("[CRITICAL] Unhandled exception: " + e)
+	logs.error(e)
+})
 
 async function getLinkData(link) {
 	let res = await fetch(link)
@@ -611,7 +627,7 @@ process_begin = async _ => {
 		selectedChannels.forEach(channel => {
 			let parent = channel.parent?.name ?? "no category"
 			if (!categories[parent])
-				categories[parent] = chinfo.folder(parent);
+				categories[parent] = chinfo.folder(clean4FS(parent));
 		})
 	}
 	
@@ -631,18 +647,19 @@ process_begin = async _ => {
 			console.log(`Channel ${key + 1} (#${channel.name}):`)
 
 			let parent = channel.parent?.name ?? "no category"
-			let myfolder = categories[parent].folder(channel.name)
+			let myfolder = categories[parent].folder(clean4FS(channel.name + " (" + channel.id + ")"))
 			let c_messages = 0;
 			let c_bytes = 0;
 			let c_lines = 0;
 			let currentchunk = 0;
 			let options = {
-				limit: 100,
-				//before: "850116695951671346"
-			}
+				limit: 100
+			};
+			let latesttxt = false;
 
 			// save channel info
 			let ch_str = `Info for channel #${channel.name}:\r\n`
+				+ `Category: ${parent}\r\n`
 				+ `ID: ${channel.id}\r\n`
 				+ `Type: ${channel.type}\r\n`
 				+ `Position: ${channel.position} (raw: ${channel.rawPosition})\r\n`
@@ -655,13 +672,14 @@ process_begin = async _ => {
 						case "GUILD_NEWS":
 							case "GUILD_NEWS":
 								ch_str += `Topic: ${channel?.topic ?? "[Unknown]"}\r\n`
-									+ `Slowmode Time: ${channel.rateLimitPerUser} second(s)`
+									+ `Slowmode Time: ${channel.rateLimitPerUser} second(s)\r\n`
+				break;
 				case "GUILD_VOICE":
 					case "GUILD_STAGE_VOICE":
 						ch_str += `Bitrate: ${channel.bitrate}\r\n`
 							+ `RTC Region: ${channel?.rtcRegion ?? "Auto"}\r\n`
 							+ `Video Quality Mode: ${channel?.videoQualityMode ?? "Unknown"}\r\n`
-							+ `User Limit: ${channel.userLimit}`
+							+ `User Limit: ${channel.userLimit}\r\n`
 				break;
 			}
 
@@ -704,8 +722,11 @@ process_begin = async _ => {
 				// turn into an array and reverse so that the last element is the latest message, and the first is the oldest
 				// so that we can keep adding new messages to the start of the file
 				messages = messages.map(msg => msg).reverse()
-				if (messages.length > 0) this_str += `[Latest message ID: ${messages[messages.length - 1].id}]\r\n`
-				else this_str += `[No messages in this channel!]\r\n`
+				if (messages.length > 0 && !latesttxt) {
+					this_str += `[Latest message ID: ${messages[messages.length - 1].id}]\r\n`
+					latesttxt = true
+				}
+				else if (messages.length == 0) this_str += `[No messages in this channel!]\r\n`
 
 				
 
@@ -741,12 +762,13 @@ process_begin = async _ => {
 					// fetch the message this one replies to (if it replies to any at all)
 					if (msg.reference) {
 						try {
-							let msgreply = await channel.messages.fetch(msg.reference.messageID)
+							let msgreply = await channel.messages.fetch(msg.reference.messageId)
 							msg_reply = " replied to " + msgreply.author.tag
 						} 
 						catch (e) 
 						{
 							msg_reply = " replied to a deleted message"
+							logs.error(`[WARN] Failed to fetch message for reference id ${msg.reference.messageId}: ${e}`)
 						}
 					}
 
@@ -880,7 +902,7 @@ process_begin = async _ => {
 
 	logs.log("Generating zip")
 	let content = await zip.generateAsync({type: "nodebuffer"})
-	let fname = guild.name.replace(/[^A-Z0-9]/ig, '').toLowerCase()
+	let fname = clean4FS(getInitials(guild.name))
 
 	try {
 		fs.writeFileSync(fname + ".zip", content)
@@ -889,7 +911,7 @@ process_begin = async _ => {
 	}
 	catch (e) {
 		console.log("Couldn't write zip, saving as backup.zip instead! (err string: " + e + ")")
-		fs.writeFileSync("backup.zip", content)
+		fs.writeFileSync("backup_" + Math.floor(Math.random() * 69420) + ".zip", content)
 		logs.error("Failed to save zip to " + fname + ".zip")
 		logs.error(e)
 	}
