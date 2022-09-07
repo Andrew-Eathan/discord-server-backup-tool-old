@@ -760,9 +760,12 @@ process_begin = async _ => {
 					let time_string = `[${timeToLocaleString(time, chosen_options.time_locale)}]`
 
 					// fetch the message this one replies to (if it replies to any at all)
+					
+					let refmsg = false
 					if (msg.reference) {
 						try {
 							let msgreply = await channel.messages.fetch(msg.reference.messageId)
+							refmsg = msgreply
 							msg_reply = " replied to " + msgreply.author.tag
 						} 
 						catch (e) 
@@ -787,6 +790,9 @@ process_begin = async _ => {
 								final_text = `${time_string} ${msg.author.tag}${msg_reply} sent sticker:${strick}\r\n`
 							}
 						break;
+						case "CHANNEL_PINNED_MESSAGE":
+							let msgtxt = refmsg ? `a message by ${refmsg.author.tag}. (content: ${msg.content.substr(0, 32) + msg.content.length > 32 ? "..." : ""})` : "a message that was deleted."
+							final_text = `${time_string} ${msg.author.tag} pinned ${refmsg}\r\n`
 						case "RECIPIENT_ADD":
 							final_text = `${time_string} ${msg.author.tag} added a member!\r\n`
 						break;
